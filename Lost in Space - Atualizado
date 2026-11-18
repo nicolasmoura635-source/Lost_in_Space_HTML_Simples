@@ -1,0 +1,638 @@
+
+(() => {
+
+  const canvas = document.getElementById('jogo');
+  const ctx = canvas.getContext('2d');
+
+  const inicio = document.getElementById('inicio');
+  const titulo = document.getElementById('titulo');
+  const mensagem = document.getElementById('mensagem');
+
+  const pontosEl = document.getElementById('pontos');
+  const vidasEl = document.getElementById('vidas');
+  const faseEl = document.getElementById('fase');
+
+  const W = canvas.width;
+  const H = canvas.height;
+
+  let pontos = 0;
+  let vidas = 3;
+  let fase = 1;
+  let rodando = false;
+  let pausado = false;
+  let fim = false;
+
+  const teclas = {};
+
+  // Velocidade reduzida da bola.
+  const VELOCIDADE_BOLA = 3.2;
+
+  const plataforma = {
+    x: 340,
+    y: 455,
+    w: 120,
+    h: 13
+  };
+
+  const bola = {
+    x: 400,
+    y: 435,
+    r: 8,
+    dx: 0,
+    dy: -VELOCIDADE_BOLA
+  };
+
+  let blocos = [];
+  let estrelas = [];
+
+  for (let i = 0; i < 95; i++) {
+    estrelas.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 1.5 + 0.3
+    });
+  }
+
+  function criarBlocos() {
+    blocos = [];
+
+    let cols = 9;
+    let rows = Math.min(3 + fase, 6);
+    let bw = 72;
+    let bh = 20;
+    let g = 8;
+
+    let left = (W - (cols * bw + (cols - 1) * g)) / 2;
+
+    let cores = [
+      '#35eaff',
+      '#368bff',
+      '#8b67ff',
+      '#ffbd48',
+      '#ff657f'
+    ];
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+
+        blocos.push({
+          x: left + c * (bw + g),
+          y: 55 + r * (bh + g),
+          w: bw,
+          h: bh,
+          vida: 1 + Math.floor((r + fase - 1) / 3),
+          cor: cores[(r + fase - 1) % cores.length],
+          ativo: true
+        });
+
+      }
+    }
+  }
+
+  function atualizarPlacar() {
+    pontosEl.textContent = pontos;
+    vidasEl.textContent = vidas;
+    faseEl.textContent = fase;
+  }
+
+  function mostrar(t, m, b = 'COMEÇAR JOGO') {
+    titulo.textContent = t;
+    mensagem.textContent = m;
+
+    document.getElementById('comecar').textContent = b;
+
+    inicio.classList.remove('escondido');
+  }
+
+  function esconder() {
+    inicio.classList.add('escondido');
+  }
+
+  function posicionarBola() {
+    bola.x = plataforma.x + plataforma.w / 2;
+    bola.y = plataforma.y - bola.r - 2;
+
+    // Começa com velocidade baixa e mantém a mesma velocidade total.
+    bola.dx = (Math.random() > 0.5 ? 1 : -1) * 1.2;
+
+    bola.dy = -Math.sqrt(
+      VELOCIDADE_BOLA ** 2 - bola.dx ** 2
+    );
+  }
+
+  function iniciar() {
+
+    // Corrige o reinício quando o jogador perde todas as vidas.
+    if (fim) {
+      reiniciar();
+    }
+
+    rodando = true;
+    pausado = false;
+
+    esconder();
+  }
+
+  function reiniciar() {
+    pontos = 0;
+    vidas = 3;
+    fase = 1;
+
+    fim = false;
+    rodando = false;
+    pausado = false;
+
+    plataforma.x = W / 2 - plataforma.w / 2;
+
+    criarBlocos();
+    posicionarBola();
+
+    atualizarPlacar();
+
+    mostrar(
+      'VOCÊ ESTÁ PRONTO?',
+      'Rebata a bola de energia e destrua todos os blocos!',
+      'COMEÇAR JOGO'
+    );
+  }
+
+  function perderVida() {
+    vidas--;
+
+    atualizarPlacar();
+
+    if (vidas <= 0) {
+
+      fim = true;
+      rodando = false;
+
+      mostrar(
+        'GAME OVER',
+        'Pontuação final: ' + pontos + '. Tente novamente!',
+        'JOGAR NOVAMENTE'
+      );
+
+    } else {
+
+      rodando = false;
+
+      posicionarBola();
+
+      mostrar(
+        'VOCÊ PERDEU UMA VIDA',
+        'Restam ' + vidas + ' vida(s).',
+        'CONTINUAR'
+      );
+
+    }
+  }
+
+  function proximaFase() {
+    fase++;
+
+    if (fase > 5) {
+
+      fim = true;
+      rodando = false;
+
+      mostrar(
+        'MISSÃO CONCLUÍDA!',
+        'Você destruiu todos os blocos! Pontuação: ' + pontos,
+        'JOGAR NOVAMENTE'
+      );
+
+      return;
+    }
+
+    criarBlocos();
+    posicionarBola();
+
+    rodando = false;
+
+    atualizarPlacar();
+
+    mostrar(
+      'FASE ' + fase,
+      'Os blocos ficaram mais resistentes!',
+      'PRÓXIMA FASE'
+    );
+  }
+
+  function desenharFundo() {
+
+    let gr = ctx.createLinearGradient(0, 0, W, H);
+
+    gr.addColorStop(0, '#071a36');
+    gr.addColorStop(1, '#030714');
+
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, 0, W, H);
+
+    estrelas.forEach(s => {
+
+      ctx.fillStyle = '#bcefff';
+      ctx.globalAlpha = 0.35 + Math.random() * 0.5;
+
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+
+    });
+
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = '#163e70';
+    ctx.globalAlpha = 0.45;
+
+    ctx.beginPath();
+    ctx.arc(60, 400, 45, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(750, 110, 55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+  }
+
+  function desenhar() {
+
+    desenharFundo();
+
+    // Desenha os blocos.
+    blocos.forEach(b => {
+
+      if (!b.ativo) return;
+
+      ctx.save();
+
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = b.cor;
+      ctx.fillStyle = b.cor;
+
+      ctx.beginPath();
+      ctx.roundRect(b.x, b.y, b.w, b.h, 4);
+      ctx.fill();
+
+      ctx.restore();
+
+      if (b.vida > 1) {
+
+        ctx.fillStyle = '#10213b';
+        ctx.font = 'bold 11px Arial';
+        ctx.textAlign = 'center';
+
+        ctx.fillText(
+          '×' + b.vida,
+          b.x + b.w / 2,
+          b.y + 14
+        );
+
+      }
+    });
+
+    // Desenha a plataforma.
+    let gr = ctx.createLinearGradient(
+      0,
+      plataforma.y,
+      0,
+      plataforma.y + plataforma.h
+    );
+
+    gr.addColorStop(0, '#eaffff');
+    gr.addColorStop(1, '#098bdf');
+
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#1ceaff';
+    ctx.fillStyle = gr;
+
+    ctx.beginPath();
+
+    ctx.roundRect(
+      plataforma.x,
+      plataforma.y,
+      plataforma.w,
+      plataforma.h,
+      6
+    );
+
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // Desenha a bola.
+    let bg = ctx.createRadialGradient(
+      bola.x - 2,
+      bola.y - 2,
+      1,
+      bola.x,
+      bola.y,
+      bola.r + 7
+    );
+
+    bg.addColorStop(0, '#fff');
+    bg.addColorStop(0.4, '#a7ffff');
+    bg.addColorStop(1, '#00aaff');
+
+    ctx.fillStyle = bg;
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = '#22eaff';
+
+    ctx.beginPath();
+    ctx.arc(bola.x, bola.y, bola.r + 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // Tela de pausa.
+    if (pausado) {
+
+      ctx.fillStyle = '#0009';
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 30px Arial';
+      ctx.textAlign = 'center';
+
+      ctx.fillText('PAUSADO', W / 2, H / 2);
+
+    }
+  }
+
+  function atualizar() {
+
+    if (rodando && !pausado && !fim) {
+
+      // Movimentação da plataforma.
+      if (teclas.ArrowLeft || teclas.a) {
+        plataforma.x -= 7;
+      }
+
+      if (teclas.ArrowRight || teclas.d) {
+        plataforma.x += 7;
+      }
+
+      plataforma.x = Math.max(
+        5,
+        Math.min(W - plataforma.w - 5, plataforma.x)
+      );
+
+      // Movimentação da bola.
+      bola.x += bola.dx;
+      bola.y += bola.dy;
+
+      // Colisão com as laterais.
+      if (bola.x < bola.r || bola.x > W - bola.r) {
+
+        bola.dx *= -1;
+
+      }
+
+      // Colisão com o teto.
+      if (bola.y < bola.r) {
+
+        bola.dy = Math.abs(bola.dy);
+
+      }
+
+      // Colisão com a plataforma.
+      if (
+        bola.dy > 0 &&
+        bola.y + bola.r >= plataforma.y &&
+        bola.y - bola.r <= plataforma.y + plataforma.h &&
+        bola.x + bola.r >= plataforma.x &&
+        bola.x - bola.r <= plataforma.x + plataforma.w
+      ) {
+
+        let hit = (
+          bola.x - (plataforma.x + plataforma.w / 2)
+        ) / (plataforma.w / 2);
+
+        // Limita o ângulo para evitar velocidade excessiva.
+        hit = Math.max(-1, Math.min(1, hit));
+
+        // Diminui e mantém a velocidade após bater na plataforma.
+        bola.dx = hit * 2.8;
+
+        bola.dy = -Math.sqrt(
+          VELOCIDADE_BOLA ** 2 - bola.dx ** 2
+        );
+
+        // Evita que a bola fique presa na plataforma.
+        bola.y = plataforma.y - bola.r;
+
+      }
+
+      // Verifica se a bola caiu.
+      if (bola.y > H) {
+
+        perderVida();
+
+        desenhar();
+
+        requestAnimationFrame(atualizar);
+
+        return;
+
+      }
+
+      // Colisão com os blocos.
+      for (let b of blocos) {
+
+        if (
+          b.ativo &&
+          bola.x + bola.r > b.x &&
+          bola.x - bola.r < b.x + b.w &&
+          bola.y + bola.r > b.y &&
+          bola.y - bola.r < b.y + b.h
+        ) {
+
+          bola.dy *= -1;
+
+          b.vida--;
+
+          if (b.vida <= 0) {
+
+            b.ativo = false;
+            pontos += 10;
+
+          }
+
+          atualizarPlacar();
+
+          break;
+
+        }
+
+      }
+
+      // Verifica se todos os blocos foram destruídos.
+      if (blocos.every(b => !b.ativo)) {
+
+        proximaFase();
+
+      }
+
+    }
+
+    desenhar();
+
+    requestAnimationFrame(atualizar);
+
+  }
+
+  // Controles do teclado.
+  document.addEventListener('keydown', e => {
+
+    if (
+      ['ArrowLeft', 'ArrowRight', ' ', 'Enter'].includes(e.key)
+    ) {
+
+      e.preventDefault();
+
+    }
+
+    teclas[e.key] = true;
+    teclas[e.key.toLowerCase()] = true;
+
+    if (
+      (e.key === 'Enter' || e.code === 'Space') &&
+      !rodando
+    ) {
+
+      iniciar();
+
+    }
+
+    if (e.key === 'Escape' && rodando) {
+
+      pausado = !pausado;
+
+    }
+
+  });
+
+  document.addEventListener('keyup', e => {
+
+    teclas[e.key] = false;
+    teclas[e.key.toLowerCase()] = false;
+
+  });
+
+  // Botão começar.
+  document.getElementById('comecar').addEventListener(
+    'click',
+    iniciar
+  );
+
+  // Botão pausar.
+  document.getElementById('pausar').addEventListener(
+    'click',
+    () => {
+
+      if (rodando) {
+        pausado = !pausado;
+      }
+
+    }
+  );
+
+  // Botão reiniciar.
+  document.getElementById('reiniciar').addEventListener(
+    'click',
+    reiniciar
+  );
+
+  // Inicialização do jogo.
+  criarBlocos();
+  posicionarBola();
+  atualizarPlacar();
+  desenhar();
+
+  requestAnimationFrame(atualizar);
+
+})();
+
+LOST IN SPACE — JOGO HTML SIMPLES
+
+Como jogar:
+1. Extraia o ZIP.
+2. Abra index.html no navegador.
+3. Pressione ENTER ou ESPAÇO ou clique em COMEÇAR JOGO.
+4. Use as setas esquerda/direita ou A/D para mover a plataforma.
+5. Pressione ESC para pausar/continuar.
+6. Você começa com 3 vidas. Cada bloco destruído vale 10 pontos.
+
+Arquivos:
+- index.html: estrutura da página
+- style.css: visual
+- jogo.js: regras do jogo
+- imagens/nave.svg: imagem vetorial da nave
+
+O jogo usa HTML, CSS, Canvas e JavaScript, conforme a documentação Lost in Space enviada.
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&display=swap');
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#030816;color:#e9f8ff;font-family:'Rajdhani',Arial,sans-serif;background-image:radial-gradient(circle at 20% 10%,#12376b 0,transparent 30%),radial-gradient(circle at 85% 75%,#17225c 0,transparent 25%)}.topo{width:min(1000px,94%);margin:24px auto 16px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}.marca{display:flex;align-items:center;gap:12px}.estrela{font-size:38px;color:#3ce9ff;text-shadow:0 0 18px #00bfff}h1{font:800 clamp(20px,3vw,32px) Orbitron,sans-serif;letter-spacing:2px;margin:0}.marca p{color:#61c9f5;letter-spacing:4px;margin:5px 0 0;font-size:12px}.placar{display:flex;gap:22px}.placar span{font-size:12px;letter-spacing:1px;color:#8bb6d5}.placar b{display:block;font:700 21px Orbitron,sans-serif;color:#fff;margin-top:4px}.instrucoes,.nota{text-align:center;color:#9bc4df;font-size:16px}.arena{position:relative;width:min(900px,94vw);margin:14px auto;border:1px solid #168ac5;border-radius:10px;padding:5px;background:#07152a;box-shadow:0 0 30px #008dff25}canvas{display:block;width:100%;height:auto;border-radius:6px;background:#030918}.inicio{position:absolute;inset:5px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:20px;background:#020918d9}.inicio.escondido{display:none}.inicio h2{font:700 clamp(19px,3vw,28px) Orbitron,sans-serif;margin:12px 0}.inicio p{font-size:18px;color:#b9d7ea;max-width:440px}.nave{width:105px;height:85px;object-fit:contain;filter:drop-shadow(0 0 14px #16cfff)}button{border:0;border-radius:5px;padding:12px 22px;background:linear-gradient(90deg,#49efff,#329bff);color:#001321;font:700 13px Orbitron,sans-serif;cursor:pointer;letter-spacing:1px}button:hover{filter:brightness(1.15)}small{margin-top:12px;color:#76a5c2}.acoes{display:flex;justify-content:center;gap:12px}.secundario{background:#0a1e35;color:#b6eaff;border:1px solid #23638c}.nota{font-size:14px;color:#628aa8;margin-bottom:28px}kbd{background:#102d4b;border:1px solid #27658d;padding:3px 8px;border-radius:4px;color:#d9faff}@media(max-width:600px){.topo{justify-content:center}.placar{width:100%;justify-content:space-around}.instrucoes{padding:0 12px}}
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lost in Space — Jogo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topo">
+    <div class="marca">
+      <span class="estrela">✦</span>
+      <div>
+        <h1>LOST IN SPACE</h1>
+        <p>ARCADE ESPACIAL</p>
+      </div>
+    </div>
+
+    <div class="placar">
+      <span>PONTOS <b id="pontos">0</b></span>
+      <span>VIDAS <b id="vidas">3</b></span>
+      <span>FASE <b id="fase">1</b></span>
+    </div>
+  </header>
+
+  <main>
+    <div class="instrucoes">
+      Use <kbd>←</kbd> <kbd>→</kbd> ou <kbd>A</kbd> <kbd>D</kbd> para mover a plataforma.
+    </div>
+
+    <section class="arena">
+      <canvas id="jogo" width="800" height="500" aria-label="Jogo Lost in Space"></canvas>
+
+      <div class="inicio" id="inicio">
+        <img src="imagens/nave.svg" alt="Nave espacial" class="nave">
+
+        <h2 id="titulo">VOCÊ ESTÁ PRONTO?</h2>
+
+        <p id="mensagem">
+          Rebata a bola de energia e destrua todos os blocos!
+        </p>
+
+        <button id="comecar">COMEÇAR JOGO</button>
+
+        <small>Pressione ENTER ou ESPAÇO</small>
+      </div>
+    </section>
+
+    <div class="acoes">
+      <button id="pausar" class="secundario">Pausar</button>
+      <button id="reiniciar" class="secundario">Reiniciar</button>
+    </div>
+
+    <p class="nota">
+      Cada bloco destruído vale 10 pontos. Você começa com 3 vidas.
+    </p>
+  </main>
+
+  <script src="jogo.js"></script>
+</body>
+</html>
